@@ -1,0 +1,30 @@
+filebeat:
+    #config_dir: /etc/filebeat/conf.d
+    prospectors:
+      - document_type: log
+        fields:
+            env: local
+            service_name: hotel-booking-api
+        fields_under_root: true
+        multiline:
+            match: after
+            negate: true
+            pattern: ^INFO|^WARN|^ERR|^DEBUG|^TRACE
+        paths:
+         - /var/log/origin/*.out
+         - /var/log/origin/*.log
+    registry_file: /var/lib/filebeat/registry
+logging:
+    files:
+        keepfiles: 7
+        name: beat.log
+        path: /var/log/filebeat
+        rotateeverybytes: 10485760
+    level: warning
+    selectors:
+     - '*'
+    to_files: true
+output:
+    logstash:
+        hosts:
+         - localhost:5044

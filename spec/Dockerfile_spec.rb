@@ -4,6 +4,7 @@ require "serverspec"
 ELK_VERSION = "5.6.3"
 ELASTICSEARCH_VERSION = ELK_VERSION
 LOGSTASH_VERSION = ELK_VERSION
+FILEBEAT_VERSION = ELK_VERSION
 KIBANA_VERSION = ELK_VERSION
 
 describe "Dockerfile" do
@@ -37,10 +38,17 @@ describe "Dockerfile" do
     it { should be_file }
   end
 
+  describe file('/opt/filebeat/bin/filebeat') do
+    it { should be_file }
+  end
+
   describe file('/opt/kibana/bin/kibana') do
     it { should be_file }
   end
 
+  describe file('/opt/cerebro/bin/cerebro') do
+    it { should be_file }
+  end
 
   ## Check ELK stack versions
 
@@ -50,6 +58,10 @@ describe "Dockerfile" do
 
   it "installs the right version of Logstash" do
     expect(logstash_version).to include(LOGSTASH_VERSION)
+  end
+
+    it "installs the right version of Filebeat" do
+    expect(filebeat_version).to include(FILEBEAT_VERSION)
   end
 
   it "installs the right version of Kibana" do
@@ -63,6 +75,10 @@ describe "Dockerfile" do
 
   def logstash_version
     command("/opt/logstash/bin/logstash --version").stdout
+  end
+
+  def filebeat_version
+    command("/opt/filebeat/bin/filebeat --version").stdout
   end
 
   def kibana_version

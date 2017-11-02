@@ -1,15 +1,16 @@
-# Dockerfile for ELK stack
-# Elasticsearch, Logstash, Kibana 5.6.3
+# Dockerfile for powered ELK stack
+# Elasticsearch, Logstash, Kibana, Filebeat 5.6.3
+# Cerebro v0.7.1
 
 # Build with:
-# docker build -t <repo-user>/elk .
+# docker build -t <repo-user>/powered-elk .
 
 # Run with:
-# docker run -p 5601:5601 -p 9200:9200 -p 5044:5044 -it --name elk <repo-user>/elk
+# docker run -p 5601:5601 -p 9200:9200 -p 5044:5044 -it --name powered-elk <repo-user>/powered-elk
 
 FROM phusion/baseimage
-MAINTAINER Sebastien Pujadas http://pujadas.net
-ENV REFRESHED_AT 2017-01-13
+MAINTAINER Alejandro Gómez https://github.com/lexfaraday
+ENV REFRESHED_AT 2017-11-02
 
 
 ###############################################################################
@@ -49,7 +50,7 @@ ENV ES_PACKAGE elasticsearch-${ES_VERSION}.tar.gz
 ENV ES_GID 991
 ENV ES_UID 991
 
-RUN mkdir ${ES_HOME} \
+RUN mkdir -p ${ES_HOME} \
  && curl -O https://artifacts.elastic.co/downloads/elasticsearch/${ES_PACKAGE} \
  && tar xzf ${ES_PACKAGE} -C ${ES_HOME} --strip-components=1 \
  && rm -f ${ES_PACKAGE} \
@@ -85,13 +86,34 @@ RUN sed -i -e 's#^LS_HOME=$#LS_HOME='$LOGSTASH_HOME'#' /etc/init.d/logstash \
  && chmod +x /etc/init.d/logstash
 
 
+### install Filebeat
+
+ENV FILEBEAT_VERSION ${ELK_VERSION}
+ENV FILEBEAT_HOME /opt/filebeat
+ENV FILEBEAT_PACKAGE filebeat-${FILEBEAT_VERSION}-linux-x86_64.tar.gz
+ENV FILEBEAT_GID 993
+ENV FILEBEAT_UID 993
+
+RUN mkdir ${FILEBEAT_HOME} \
+ && curl -O https://artifacts.elastic.co/downloads/beats/filebeat/${FILEBEAT_PACKAGE} \
+ && tar xzf ${FILEBEAT_PACKAGE} -C ${FILEBEAT_HOME} --strip-components=1 \
+ && rm -f ${FILEBEAT_PACKAGE} \
+ && groupadd -r filebeat -g ${FILEBEAT_GID} \
+ && useradd -r -s /usr/sbin/nologin -M -c "Filebeat service user" -u ${FILEBEAT_UID} -g filebeat filebeat \
+ && mkdir -p /var/log/filebeat /var/lib/filebeat /var/log/origin /etc/filebeat \
+ && chown -R filebeat:filebeat ${FILEBEAT_HOME} /var/log/filebeat /var/lib/filebeat /var/log/origin /etc/filebeat
+
+ADD ./filebeat-init /etc/init.d/filebeat
+RUN sed -i -e 's#^FILEBEAT_HOME=$#FILEBEAT_HOME='$FILEBEAT_HOME'#' /etc/init.d/filebeat \
+ && chmod +x /etc/init.d/filebeat
+
 ### install Kibana
 
 ENV KIBANA_VERSION ${ELK_VERSION}
 ENV KIBANA_HOME /opt/kibana
 ENV KIBANA_PACKAGE kibana-${KIBANA_VERSION}-linux-x86_64.tar.gz
-ENV KIBANA_GID 993
-ENV KIBANA_UID 993
+ENV KIBANA_GID 994
+ENV KIBANA_UID 994
 
 RUN mkdir ${KIBANA_HOME} \
  && curl -O https://artifacts.elastic.co/downloads/kibana/${KIBANA_PACKAGE} \
@@ -105,6 +127,28 @@ RUN mkdir ${KIBANA_HOME} \
 ADD ./kibana-init /etc/init.d/kibana
 RUN sed -i -e 's#^KIBANA_HOME=$#KIBANA_HOME='$KIBANA_HOME'#' /etc/init.d/kibana \
  && chmod +x /etc/init.d/kibana
+
+
+### install Cerebro v.0.7.1
+
+ENV CEREBRO_VERSION 0.7.1
+ENV CEREBRO_HOME /opt/cerebro
+ENV CEREBRO_PACKAGE cerebro-${CEREBRO_VERSION}.tgz
+ENV CEREBRO_GID 995
+ENV CEREBRO_UID 995
+
+RUN mkdir ${CEREBRO_HOME} \
+ && curl -OL https://github.com/lmenezes/cerebro/releases/download/v0.7.1/${CEREBRO_PACKAGE} \
+ && tar xzf ${CEREBRO_PACKAGE} -C ${CEREBRO_HOME} --strip-components=1 \
+ && rm -f ${CEREBRO_PACKAGE} \
+ && groupadd -r cerebro -g ${CEREBRO_GID} \
+ && useradd -r -s /usr/sbin/nologin -M -c "Cerebro service user" -u ${CEREBRO_UID} -g cerebro cerebro \
+ && mkdir -p /var/log/cerebro \
+ && chown -R cerebro:cerebro ${CEREBRO_HOME} /var/log/cerebro
+
+ADD ./cerebro-init /etc/init.d/cerebro
+RUN sed -i -e 's#^CEREBRO_HOME=$#CEREBRO_HOME='$CEREBRO_HOME'#' /etc/init.d/cerebro \
+ && chmod +x /etc/init.d/cerebro
 
 
 ###############################################################################
@@ -149,6 +193,16 @@ RUN chmod 644 /etc/logrotate.d/elasticsearch \
  && chmod 644 /etc/logrotate.d/logstash \
  && chmod 644 /etc/logrotate.d/kibana
 
+### configure Filebeat
+
+ADD ./filebeat.yml /etc/filebeat/filebeat.yml
+RUN chmod -R +r /etc/filebeat
+
+### configure Cerebro
+
+ADD ./cerebro-logback.xml /opt/cerebro/conf/logback.xml
+ADD ./cerebro-application.conf /opt/cerebro/conf/application.conf
+RUN chmod -R +r /opt/cerebro/conf
 
 ### configure Kibana
 
@@ -162,7 +216,10 @@ ADD ./kibana.yml ${KIBANA_HOME}/config/kibana.yml
 ADD ./start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 
-EXPOSE 5601 9200 9300 5044
+EXPOSE 5601 9000 9200 9300 5044
 VOLUME /var/lib/elasticsearch
+# Volume for filebeat collector, put your logs here :)
+VOLUME /var/log/origin
+# Volume for logstash configuration
 
 CMD [ "/usr/local/bin/start.sh" ]

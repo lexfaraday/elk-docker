@@ -14,10 +14,12 @@
 ## handle termination gracefully
 
 _term() {
-  echo "Terminating ELK"
-  service elasticsearch stop
-  service logstash stop
+  echo "Terminating powered ELK"
   service kibana stop
+  service cerebro stop
+  service filebeat stop
+  service logstash stop
+  service elasticsearch stop
   exit 0
 }
 
@@ -30,7 +32,7 @@ trap _term SIGTERM
 #   enough for me :)
 
 rm -f /var/run/elasticsearch/elasticsearch.pid /var/run/logstash.pid \
-  /var/run/kibana5.pid
+  /var/run/kibana5.pid /var/run/filebeat.pid /var/run/cerebro.pid
 
 ## initialise list of log files to stream in console (initially empty)
 OUTPUT_LOGFILES=""
@@ -163,6 +165,18 @@ else
   OUTPUT_LOGFILES+="/var/log/logstash/logstash-plain.log "
 fi
 
+### Filebeat
+
+if [ -z "$FILEBEAT_START" ]; then
+  FILEBEAT_START=1
+fi
+if [ "$FILEBEAT_START" -ne "1" ]; then
+  echo "FILEBEAT_START is set to something different from 1, not starting..."
+else
+  chown -R filebeat:filebeat /var/log/origin
+  service filebeat start
+  OUTPUT_LOGFILES+="/var/log/filebeat/beat.log "
+fi
 
 ### Kibana
 
@@ -180,6 +194,18 @@ else
 
   service kibana start
   OUTPUT_LOGFILES+="/var/log/kibana/kibana5.log "
+fi
+
+### Cerebro
+
+if [ -z "$CEREBRO_START" ]; then
+  CEREBRO_START=1
+fi
+if [ "$CEREBRO_START" -ne "1" ]; then
+  echo "CEREBRO_START is set to something different from 1, not starting..."
+else
+  service cerebro start
+  OUTPUT_LOGFILES+="/var/log/cerebro/cerebro.stdout "
 fi
 
 # Exit if nothing has been started
