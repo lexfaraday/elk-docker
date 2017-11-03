@@ -89,18 +89,17 @@ RUN sed -i -e 's#^LS_HOME=$#LS_HOME='$LOGSTASH_HOME'#' /etc/init.d/logstash \
 ### install Filebeat
 
 ENV FILEBEAT_VERSION ${ELK_VERSION}
-ENV FILEBEAT_HOME /opt/filebeat
-ENV FILEBEAT_PACKAGE filebeat-${FILEBEAT_VERSION}-linux-x86_64.tar.gz
+ENV FILEBEAT_HOME /usr/share/filebeat
+ENV FILEBEAT_PACKAGE filebeat-${FILEBEAT_VERSION}-amd64.deb
 ENV FILEBEAT_GID 993
 ENV FILEBEAT_UID 993
 
-RUN mkdir ${FILEBEAT_HOME} \
- && curl -O https://artifacts.elastic.co/downloads/beats/filebeat/${FILEBEAT_PACKAGE} \
- && tar xzf ${FILEBEAT_PACKAGE} -C ${FILEBEAT_HOME} --strip-components=1 \
+RUN curl -L -O https://artifacts.elastic.co/downloads/beats/filebeat/${FILEBEAT_PACKAGE} \
+ && dpkg -i ${FILEBEAT_PACKAGE} \
  && rm -f ${FILEBEAT_PACKAGE} \
  && groupadd -r filebeat -g ${FILEBEAT_GID} \
  && useradd -r -s /usr/sbin/nologin -M -c "Filebeat service user" -u ${FILEBEAT_UID} -g filebeat filebeat \
- && mkdir -p /var/log/filebeat /var/lib/filebeat /var/log/origin /etc/filebeat \
+ && mkdir -p /var/log/filebeat /var/lib/filebeat /var/log/origin \
  && chown -R filebeat:filebeat ${FILEBEAT_HOME} /var/log/filebeat /var/lib/filebeat /var/log/origin /etc/filebeat
 
 ADD ./filebeat-init /etc/init.d/filebeat
